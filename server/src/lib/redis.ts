@@ -18,26 +18,37 @@ const defaultOptions = {
 };
 
 export const redisPrimary = new Redis(redisUrl, defaultOptions);
-
-export const redisPublisher = new Redis(redisUrl, {
-  ...defaultOptions,
+export const redisRate = redisPrimary.duplicate();
+export const redisPublisher = redisPrimary.duplicate({
   maxRetriesPerRequest: 20,
 });
 
 redisPrimary.on("error", (err) => {
-  console.error("Redis connection error:", err);
+  console.error("Redis Primary connection error:", err);
 });
 
 redisPrimary.on("connect", () => {
-  console.log("Redis connected");
+  console.log("Redis Primary connected");
+});
+
+redisRate.on("error", (err) => {
+  console.error("Redis Rate connection error:", err);
+});
+
+redisRate.on("connect", () => {
+  console.log("Redis Rate connected");
 });
 
 redisPublisher.on("error", (err) => {
-  console.error("Redis client error:", err);
+  console.error("Redis Publisher connection error:", err);
 });
 
 export async function closeRedis() {
-  await Promise.all([redisPrimary.quit(), redisPublisher.quit()]);
+  await Promise.all([
+    redisPrimary.quit(),
+    redisPublisher.quit(),
+    redisRate.quit(),
+  ]);
 }
 
 process.on("SIGTERM", closeRedis);

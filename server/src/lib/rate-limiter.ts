@@ -1,4 +1,4 @@
-import { redis } from "./redis";
+import { redisRate } from "./redis";
 import {
   RATE_LIMIT_UPLOAD_MAX,
   RATE_LIMIT_UPLOAD_WINDOW_MS,
@@ -30,15 +30,12 @@ export class RateLimiter {
     };
   }
 
-  async checkLimit(
-    userId: string,
-    endpoint: string
-  ): Promise<RateLimitResult> {
+  async checkLimit(userId: string, endpoint: string): Promise<RateLimitResult> {
     const key = `ratelimit:${this.config.identifier}:${endpoint}:${userId}`;
     const now = Date.now();
     const windowStart = now - this.config.windowMs;
 
-    const pipeline = redis.pipeline();
+    const pipeline = redisRate.pipeline();
 
     pipeline.zremrangebyscore(key, 0, windowStart);
 
@@ -57,9 +54,9 @@ export class RateLimiter {
     const requestCount = (results[1][1] as number) || 0;
 
     if (requestCount >= this.config.maxRequests) {
-      await redis.zrem(key, (results[2][1] as string[]));
+      await redisRate.zrem(key, results[2][1] as string[]);
 
-      const oldestRequests = await redis.zrange(key, 0, 0, "WITHSCORES");
+      const oldestRequests = await redisRate.zrange(key, 0, 0, "WITHSCORES");
       const resetAt =
         oldestRequests.length > 0
           ? new Date(parseInt(oldestRequests[1]) + this.config.windowMs)
@@ -93,15 +90,15 @@ export class RateLimiter {
     const now = Date.now();
     const windowStart = now - this.config.windowMs;
 
-    await redis.zremrangebyscore(key, 0, windowStart);
-    const count = await redis.zcard(key);
+    await redisRate.zremrangebyscore(key, 0, windowStart);
+    const count = await redisRate.zcard(key);
 
     return Math.max(0, this.config.maxRequests - count);
   }
 
   async resetLimit(userId: string, endpoint: string): Promise<void> {
     const key = `ratelimit:${this.config.identifier}:${endpoint}:${userId}`;
-    await redis.del(key);
+    await redisRate.del(key);
   }
 
   getConfig(): { maxRequests: number; windowMs: number; identifier?: string } {
