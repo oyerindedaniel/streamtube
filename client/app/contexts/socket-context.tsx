@@ -23,9 +23,18 @@ interface SocketContextType {
   ) => () => void;
 }
 
+export type VideoStatus =
+  | "pending_upload"
+  | "uploading"
+  | "processing"
+  | "ready"
+  | "failed"
+  | "cancelled"
+  | "deleted";
+
 export interface VideoStatusEvent {
   videoId: string;
-  status: string;
+  status: VideoStatus;
   error?: string;
 }
 

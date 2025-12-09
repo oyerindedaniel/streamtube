@@ -1,7 +1,6 @@
 FROM node:20-alpine
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
@@ -13,6 +12,6 @@ COPY . .
 
 RUN pnpm build
 
-EXPOSE 3001
+EXPOSE 3003
 
 CMD ["node", "dist/index.js"]

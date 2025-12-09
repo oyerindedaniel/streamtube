@@ -136,6 +136,16 @@ export const storage = {
     );
   },
 
+  async getFileAsJson(key: string) {
+    const command = new GetObjectCommand({
+      Bucket: S3_BUCKET_NAME,
+      Key: key,
+    });
+    const response = await s3.send(command);
+    const str = await response.Body?.transformToString();
+    return JSON.parse(str || "{}");
+  },
+
   async createMultipartUpload(
     key: string,
     contentType: string,

@@ -78,8 +78,6 @@ services:
     volumes:
       - ./tmp:/app/tmp
     restart: unless-stopped
-    deploy:
-      replicas: 2
 
 volumes:
   postgres_data:

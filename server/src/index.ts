@@ -1,11 +1,16 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import websocket from "@fastify/websocket";
 import dotenv from "dotenv";
 import path from "path";
 import fastifyStatic from "@fastify/static";
+import rateLimit from "@fastify/rate-limit";
 import { Server } from "socket.io";
 import { startScheduledJobs } from "./jobs/scheduler";
+import { uploadRoutes } from "./modules/upload/routes";
+import { videoRoutes } from "./modules/videos/routes";
+import { healthRoutes } from "./modules/health/routes";
+import { redisPrimary, redisRate } from "./lib/redis";
+import { rateLimitConfigs } from "./lib/rate-limiter";
 
 dotenv.config();
 
@@ -14,7 +19,7 @@ const fastify = Fastify({
 });
 
 fastify.register(cors, {
-  origin: process.env.CORS_ORIGIN || "*",
+  origin: process.env.CORS_ORIGIN,
   credentials: true,
 });
 
@@ -23,31 +28,77 @@ fastify.register(fastifyStatic, {
   prefix: "/files/",
 });
 
-import { uploadRoutes } from "./modules/upload/routes";
-import { videoRoutes } from "./modules/videos/routes";
-import { healthRoutes } from "./modules/health/routes";
-import { createRateLimitMiddleware } from "./middleware/rate-limit";
-import { uploadRateLimiter, apiRateLimiter } from "./lib/rate-limiter";
-import { redisPrimary } from "./lib/redis";
-
-fastify.register(healthRoutes);
-fastify.register(uploadRoutes, {
-  prefix: "/api/v1/uploads",
-  preHandler: createRateLimitMiddleware(uploadRateLimiter, "uploads"),
-});
-fastify.register(videoRoutes, {
-  prefix: "/api/v1/videos",
-  preHandler: createRateLimitMiddleware(apiRateLimiter, "videos"),
-});
-
-startScheduledJobs();
-
-fastify.get("/", async (request, reply) => {
-  return { hello: "world", server: "stream-forge-backend", version: "1.0.0" };
-});
-
 const start = async () => {
   try {
+    await fastify.register(rateLimit, {
+      global: false,
+      redis: redisRate,
+      nameSpace: "ratelimit:",
+      continueExceeding: true,
+      skipOnError: false,
+
+      keyGenerator: (request) => {
+        return request.ip || "unknown";
+      },
+
+      errorResponseBuilder: (_, context) => {
+        return {
+          error: "Too Many Requests",
+          message: `Rate limit exceeded. Maximum ${context.max} requests per ${context.after}.`,
+          retryAfter: Math.ceil(context.ttl / 1000),
+          resetAt: new Date(Date.now() + context.ttl).toISOString(),
+          limit: {
+            total: context.max,
+            remaining: 0,
+            current: context.max,
+          },
+        };
+      },
+      addHeadersOnExceeding: {
+        "x-ratelimit-limit": true,
+        "x-ratelimit-remaining": true,
+        "x-ratelimit-reset": true,
+      },
+      addHeaders: {
+        "x-ratelimit-limit": true,
+        "x-ratelimit-remaining": true,
+        "x-ratelimit-reset": true,
+        "retry-after": true,
+      },
+    });
+
+    fastify.register(healthRoutes);
+
+    fastify.register(uploadRoutes, {
+      prefix: "/api/v1/uploads",
+      config: {
+        rateLimit: {
+          max: rateLimitConfigs.upload.max,
+          timeWindow: rateLimitConfigs.upload.timeWindow,
+        },
+      },
+    });
+
+    fastify.register(videoRoutes, {
+      prefix: "/api/v1/videos",
+      config: {
+        rateLimit: {
+          max: rateLimitConfigs.api.max,
+          timeWindow: rateLimitConfigs.api.timeWindow,
+        },
+      },
+    });
+
+    startScheduledJobs();
+
+    fastify.get("/", async (request, reply) => {
+      return {
+        hello: "world",
+        server: "stream-forge-backend",
+        version: "1.0.0",
+      };
+    });
+
     const port = parseInt(process.env.PORT || "3001");
     const host = "0.0.0.0";
 
