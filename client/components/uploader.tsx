@@ -3,11 +3,12 @@ import { useState, useRef } from "react";
 import { API_URL } from "@/app/lib/constants";
 import { UPLOAD_CHUNK_SIZE } from "@/app/lib/constants";
 import { createSHA256 } from "hash-wasm";
+import { STORAGE_KEY } from "@/app/lib/constants";
 
 export function Uploader() {
   const [uploads, setUploads] = useState<Record<string, UploadProgress>>(() => {
     if (typeof window === "undefined") return {};
-    const saved = window.localStorage.getItem("streamforge_uploads");
+    const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return {};
     try {
       const sessions = JSON.parse(saved) as Record<string, SavedSession>;
@@ -42,7 +43,7 @@ export function Uploader() {
         },
       ])
     );
-    localStorage.setItem("streamforge_uploads", JSON.stringify(toSave));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,6 +112,7 @@ export function Uploader() {
           partUrls: initData.partUrls,
           totalChunks,
           uploadedParts: null,
+          urlsExpiresAt: initData.expiresAt,
         };
 
         setUploads((prev) => {
@@ -120,6 +122,7 @@ export function Uploader() {
               ...prev[tempId],
               uploadId: initData.uploadId,
               sessionId: initData.multipartUploadId,
+              urlsExpiresAt: initData.expiresAt,
             },
           };
           saveSessions(updated);
@@ -390,23 +393,50 @@ export function Uploader() {
         }
 
         if (session.type === "multipart" && session.multipartUploadId) {
-          const refreshResponse = await fetch(
-            `${API_URL}/api/v1/uploads/${session.uploadId}/refresh-urls`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                multipartUploadId: session.multipartUploadId,
-              }),
+          const now = new Date().getTime();
+          const expiresAt = session.urlsExpiresAt
+            ? new Date(session.urlsExpiresAt).getTime()
+            : 0;
+          const urlsExpired = !session.urlsExpiresAt || now >= expiresAt;
+
+          let partUrls = session.partUrls;
+          let partSize = UPLOAD_CHUNK_SIZE;
+
+          if (urlsExpired) {
+            const refreshResponse = await fetch(
+              `${API_URL}/api/v1/uploads/${session.uploadId}/refresh-urls`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  multipartUploadId: session.multipartUploadId,
+                }),
+              }
+            );
+
+            if (!refreshResponse.ok) {
+              throw new Error("Failed to refresh upload URLs");
             }
-          );
 
-          if (!refreshResponse.ok) {
-            throw new Error("Failed to refresh upload URLs");
+            const refreshData = await refreshResponse.json();
+            partUrls = refreshData.partUrls;
+            partSize = refreshData.partSize;
+
+            session.partUrls = partUrls;
+            session.urlsExpiresAt = refreshData.expiresAt;
+
+            setUploads((prev) => {
+              const updated = {
+                ...prev,
+                [tempId]: {
+                  ...prev[tempId],
+                  urlsExpiresAt: refreshData.expiresAt,
+                },
+              };
+              saveSessions(updated);
+              return updated;
+            });
           }
-
-          const { partUrls, partSize } = await refreshResponse.json();
-          session.partUrls = partUrls;
 
           await uploadChunked(tempId, file, partUrls, partSize);
         } else {
@@ -638,6 +668,7 @@ interface UploadProgress {
   error?: string;
   uploadedChunks: Set<number>;
   sessionId?: string;
+  urlsExpiresAt?: string;
 }
 
 interface SavedSession {
@@ -650,6 +681,7 @@ interface SavedSession {
   error?: string;
   uploadedChunks: number[];
   sessionId?: string;
+  urlsExpiresAt?: string;
 }
 
 type UploadedPart = {
@@ -666,6 +698,7 @@ interface MultipartUploadSession {
   partUrls: string[];
   totalChunks: number;
   uploadedParts: UploadedParts | null;
+  urlsExpiresAt?: string;
 }
 
 interface SingleUploadSession {

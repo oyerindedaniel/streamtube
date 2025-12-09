@@ -3,9 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import SuperJSON from "superjson";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useState, ReactNode } from "react";
+import { ReactNode } from "react";
 import { SocketProvider } from "./socket-context";
 import { VideoPlayerProvider } from "./video-player-context";
+import { useUploadCleanup } from "@/hooks/use-upload-cleanup";
 
 export const createQueryClient = () =>
   new QueryClient({
@@ -43,6 +44,8 @@ const getQueryClient = () => {
 
 export function Providers({ children }: { children: ReactNode }) {
   const queryClient = getQueryClient();
+
+  useUploadCleanup();
 
   return (
     <QueryClientProvider client={queryClient}>

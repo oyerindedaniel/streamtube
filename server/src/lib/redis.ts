@@ -51,5 +51,5 @@ export async function closeRedis() {
   ]);
 }
 
-process.on("SIGTERM", closeRedis);
-process.on("SIGINT", closeRedis);
+// process.on("SIGTERM", closeRedis);
+// process.on("SIGINT", closeRedis);

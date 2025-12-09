@@ -83,7 +83,7 @@ export default function VideoPage() {
   if (isPending) {
     return (
       <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center justify-center">
-        <LoaderIcon size={24} />
+        <LoaderIcon />
         <p className="text-lg">Loading video...</p>
       </div>
     );

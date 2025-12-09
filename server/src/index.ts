@@ -11,6 +11,7 @@ import { videoRoutes } from "./modules/videos/routes";
 import { healthRoutes } from "./modules/health/routes";
 import { redisPrimary, redisRate } from "./lib/redis";
 import { rateLimitConfigs } from "./lib/rate-limiter";
+import { CORS_ORIGIN } from "./lib/constants";
 
 dotenv.config();
 
@@ -19,7 +20,7 @@ const fastify = Fastify({
 });
 
 fastify.register(cors, {
-  origin: process.env.CORS_ORIGIN,
+  origin: CORS_ORIGIN,
   credentials: true,
 });
 

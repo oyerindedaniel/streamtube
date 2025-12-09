@@ -9,6 +9,8 @@ export const UPLOAD_RETRY_DELAY = 1000;
 export const VIDEO_QUALITIES = ["360p", "720p", "1080p"] as const;
 export type VideoQuality = (typeof VIDEO_QUALITIES)[number];
 
+export const STORAGE_KEY = "streamforge_uploads";
+
 export const ROUTES = {
   home: "/",
   video: (id: string) => `/video/${id}`,
