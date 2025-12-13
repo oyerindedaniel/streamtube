@@ -139,8 +139,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
       }>;
     };
 
-    console.log("---------------------------------------", { parts });
-
     if (!Array.isArray(parts) || parts.length === 0) {
       return reply.status(400).send({ error: "Parts array required" });
     }
@@ -177,8 +175,6 @@ export async function uploadRoutes(fastify: FastifyInstance) {
     const mergedChecksums = Array.from(checksumMap.values()).sort(
       (a, b) => a.partNumber - b.partNumber
     );
-
-    console.log({ mergedChecksums });
 
     await db
       .update(videos)

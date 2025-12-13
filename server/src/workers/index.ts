@@ -174,6 +174,14 @@ async function handleValidationJob(job: Job) {
       );
     }
 
+    await db
+      .update(videos)
+      .set({
+        checksumValidatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(videos.id, videoId));
+
     console.log(
       `[Validation Worker] ✓ All ${partChecksums.length} parts validated successfully for ${videoId}`
     );
@@ -279,12 +287,46 @@ async function handleTranscodeJob(job: Job) {
         fs.mkdirSync(qualityDir, { recursive: true });
       }
 
+      //TODO: fix duplicate transcode currently having a rename issue
+
+      const initPath = path.join(qualityDir, "init.mp4");
+      await transcodeVideo(sourcePath, initPath, [
+        "-y",
+        "-t",
+        "0.1",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0",
+        "-vf",
+        `scale=-2:${quality.height}`,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "23",
+        "-b:v",
+        quality.bitrate,
+        "-c:a",
+        "aac",
+        "-b:a",
+        quality.audioBitrate,
+        "-movflags",
+        "+frag_keyframe+empty_moov+default_base_moof",
+        "-f",
+        "mp4",
+      ]);
+
       await transcodeVideo(
         sourcePath,
-        path.join(qualityDir, "manifest.mpd"),
+        path.join(qualityDir, "seg_%d.m4s"),
         [
+          "-y",
           "-map",
-          "0",
+          "0:v:0",
+          "-map",
+          "0:a:0",
           "-vf",
           `scale=-2:${quality.height}`,
           "-c:v",
@@ -306,19 +348,17 @@ async function handleTranscodeJob(job: Job) {
           "-sc_threshold",
           "0",
           "-f",
-          "dash",
-          "-init_seg_name",
-          "init.mp4",
-          "-media_seg_name",
-          "seg_$Number$.m4s",
-          "-use_template",
-          "0",
-          "-use_timeline",
-          "1",
-          "-seg_duration",
+          "segment",
+          "-segment_time",
           "4",
-          "-adaptation_sets",
-          "id=0,streams=v id=1,streams=a",
+          "-segment_format",
+          "mp4",
+          "-movflags",
+          "+frag_keyframe+empty_moov+default_base_moof",
+          "-reset_timestamps",
+          "1",
+          "-segment_start_number",
+          "1",
         ],
         (progress) => {
           if (progress.includes("time=")) {

@@ -1,0 +1,1 @@
+ALTER TABLE "videos" ADD COLUMN "checksum_validated_at" timestamp with time zone;

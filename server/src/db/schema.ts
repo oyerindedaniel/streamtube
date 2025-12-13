@@ -44,6 +44,9 @@ export const videos = pgTable(
         size: number;
       }>
     >(),
+    checksumValidatedAt: timestamp("checksum_validated_at", {
+      withTimezone: true,
+    }),
 
     manifestUrl: text("manifest_url"),
     initSegmentUrl: text("init_segment_url"),

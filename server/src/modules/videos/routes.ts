@@ -151,7 +151,11 @@ export async function videoRoutes(fastify: FastifyInstance) {
       })
       .where(eq(videos.id, id));
 
-    if (videoData.partChecksums && Array.isArray(videoData.partChecksums)) {
+    if (
+      videoData.partChecksums &&
+      Array.isArray(videoData.partChecksums) &&
+      !videoData.checksumValidatedAt
+    ) {
       await videoQueue.add("validate-checksums", {
         videoId: videoData.id,
         sourceUrl: videoData.sourceUrl,
@@ -159,6 +163,10 @@ export async function videoRoutes(fastify: FastifyInstance) {
         chunkSize: MULTIPART_CHUNK_SIZE,
       });
       console.log(`[Retry] Queued checksum validation for ${id}`);
+    } else if (videoData.checksumValidatedAt) {
+      console.log(
+        `[Retry] Skipping checksum validation for ${id} (already validated at ${videoData.checksumValidatedAt})`
+      );
     }
 
     await videoQueue.add("transcode", {
@@ -172,6 +180,7 @@ export async function videoRoutes(fastify: FastifyInstance) {
       videoId: videoData.id,
       status: "processing",
       attempt: (videoData.processingAttempts || 0) + 1,
+      checksumValidated: !!videoData.checksumValidatedAt,
     };
   });
 }

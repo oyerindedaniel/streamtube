@@ -15,6 +15,13 @@
       "when": 1765626862838,
       "tag": "0001_friendly_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765664512042,
+      "tag": "0002_acoustic_betty_brant",
+      "breakpoints": true
     }
   ]
 }
